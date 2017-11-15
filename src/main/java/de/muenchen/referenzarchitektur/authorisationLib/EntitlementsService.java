@@ -16,10 +16,21 @@ import org.json.JSONObject;
 import org.keycloak.authorization.client.AuthzClient;
 import org.keycloak.authorization.client.representation.EntitlementResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.jwt.Jwt;
 import org.springframework.security.jwt.JwtHelper;
 import org.springframework.security.oauth2.client.OAuth2RestTemplate;
+import org.springframework.security.oauth2.provider.authentication.OAuth2AuthenticationDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
 
 /**
  *
@@ -32,7 +43,7 @@ public class EntitlementsService {
 
     private AuthorisationService authorisationService;
     protected OAuth2RestTemplate oauth2Template;
-    
+
     @Value("${security.oauth2.entitlements.entitlementsUri}")
     private String authUrl;
 
@@ -61,6 +72,21 @@ public class EntitlementsService {
         return checkPermissionWithEntitlementsInCache(user, refreshDate, permission, token, useKeyCloakApi);
     }
 
+    public Set<String> getPermissions() {
+        Authentication a = SecurityContextHolder.getContext().getAuthentication();
+        OAuth2AuthenticationDetails details = (OAuth2AuthenticationDetails) a.getDetails();
+        String tokenValue = details.getTokenValue();
+        String claims = retrieveClaimsFromJWT(tokenValue);
+
+        //String userName = ((java.util.LinkedHashMap) a.getUserAuthentication().getDetails()).get("preferred_username");
+        String userName = retrieveUsernameFromToken(claims);
+        LOG.info("User: " + userName);
+        Set<String> permissionSet = permissions.get(userName) != null ? permissions.get(userName).getPermissions() : null;
+        if (permissionSet != null) {
+            LOG.info("Permissions " + permissionSet.toString());
+        }
+        return permissionSet;
+    }
 
     /**
      * Check Permission with Entitlements. Check Cache first.
@@ -90,15 +116,14 @@ public class EntitlementsService {
         } else {
             //not found in cache or no longer valid --> fetch new
             LOG.info("Permissions no longer valid. RefreshDate: " + refreshDate + ", Now is " + LocalDateTime.now());
-            
+
             String rpt;
             if (useKeyCloakApi) {
                 rpt = retrieveRPTviaEntitlementsWithKeyCloakAPI(token);
             } else {
-                rpt = retrieveRPTviaEntitlements();
+                rpt = retrieveRPTviaEntitlements(token);
             }
-            
-            
+
             Set<String> permissionsSet = authorisationService.extractPermissionsFromRPT(rpt);
             timedPermissions.setPermissions(permissionsSet);
             timedPermissions.setRefreshDate(expiration);
@@ -141,12 +166,25 @@ public class EntitlementsService {
 
     /**
      * Calls Entitlements-API directly without KeyCloak-specific Code.
+     *
      * @return The retrieved RPT
      */
-    private String retrieveRPTviaEntitlements() {
+    private String retrieveRPTviaEntitlements(String token) {
         LOG.info("Called retrieveEntitlements");
 
-        String response = this.oauth2Template.getForObject(authUrl, String.class);
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + token);
+
+        HttpEntity entity = new HttpEntity(headers);
+
+        ResponseEntity<String> responseEntity = restTemplate.exchange(
+                authUrl, HttpMethod.GET, entity, String.class);
+
+
+//        String response = this.oauth2Template.getForObject(authUrl, String.class);
+        String response = responseEntity.getBody();
+        LOG.info("Body " + response);
 
         JSONObject responseJSON = new JSONObject(response);
 
@@ -156,6 +194,7 @@ public class EntitlementsService {
 
     /**
      * Calls Entitlements-API with the help of keycloak specific classes.
+     *
      * @param token The User Access Token
      * @return The retrieved RPT
      */
