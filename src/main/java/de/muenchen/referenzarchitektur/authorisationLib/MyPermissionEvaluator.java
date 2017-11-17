@@ -21,8 +21,6 @@ import org.springframework.stereotype.Service;
 public class MyPermissionEvaluator implements PermissionEvaluator {
 
     private static final Logger LOG = Logger.getLogger(MyPermissionEvaluator.class.getName());
-    @Autowired    
-    private final AuthorisationService authService = null;
     
     @Autowired    
     private final EntitlementsService entitlementsService = null;
@@ -43,9 +41,7 @@ public class MyPermissionEvaluator implements PermissionEvaluator {
         String method = (String) o;
         
         boolean allowed = false;
-        if (method.equals("UMA")) {
-            allowed = this.authService.method1(string);
-        } else if (method.equals("Entitlements")) {
+        if (method.equals("Entitlements")) {
             allowed = this.entitlementsService.check(string, tokenValue, false);
         } else if (method.equals("EntitlementsKeyCloakAPI")) {
             allowed = this.entitlementsService.check(string, tokenValue, true);

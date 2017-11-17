@@ -9,9 +9,11 @@ import de.muenchen.referenzarchitektur.authorisationLib.model.TimedPermissions;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.keycloak.authorization.client.AuthzClient;
 import org.keycloak.authorization.client.representation.EntitlementResponse;
@@ -20,16 +22,12 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.jwt.Jwt;
 import org.springframework.security.jwt.JwtHelper;
-import org.springframework.security.oauth2.client.OAuth2RestTemplate;
 import org.springframework.security.oauth2.provider.authentication.OAuth2AuthenticationDetails;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 /**
@@ -41,19 +39,16 @@ public class EntitlementsService {
 
     private static final Logger LOG = Logger.getLogger(EntitlementsService.class.getName());
 
-    private AuthorisationService authorisationService;
-    protected OAuth2RestTemplate oauth2Template;
-
+//    protected OAuth2RestTemplate oauth2Template;
     @Value("${security.oauth2.entitlements.entitlementsUri}")
     private String authUrl;
 
     //hack: Entitlements "Cache": user --> permissions
     private Map<String, TimedPermissions> permissions = new HashMap<>();
 
-    public EntitlementsService(AuthorisationService authorisationService, OAuth2RestTemplate oauth2Template) {
-        this.authorisationService = authorisationService;
-        this.oauth2Template = oauth2Template;
-    }
+//    public EntitlementsService(OAuth2RestTemplate oauth2Template) {
+//        this.oauth2Template = oauth2Template;
+//    }
 
     /**
      * check (Entitlements)
@@ -72,7 +67,7 @@ public class EntitlementsService {
         return checkPermissionWithEntitlementsInCache(user, refreshDate, permission, token, useKeyCloakApi);
     }
 
-    public Set<String> getPermissions() {
+    public Set<String> getPermissions(boolean useKeyCloakApi) {
         Authentication a = SecurityContextHolder.getContext().getAuthentication();
         OAuth2AuthenticationDetails details = (OAuth2AuthenticationDetails) a.getDetails();
         String tokenValue = details.getTokenValue();
@@ -81,11 +76,47 @@ public class EntitlementsService {
         //String userName = ((java.util.LinkedHashMap) a.getUserAuthentication().getDetails()).get("preferred_username");
         String userName = retrieveUsernameFromToken(claims);
         LOG.info("User: " + userName);
-        Set<String> permissionSet = permissions.get(userName) != null ? permissions.get(userName).getPermissions() : null;
+        
+        LocalDateTime refreshDate = calculateExpirationFromJWT(claims);
+        TimedPermissions timedPermissions = fetchPermissions(userName, refreshDate, tokenValue, useKeyCloakApi);
+        Set<String> permissionSet = timedPermissions.getPermissions();
         if (permissionSet != null) {
             LOG.info("Permissions " + permissionSet.toString());
         }
         return permissionSet;
+    }
+    
+    
+    private TimedPermissions fetchPermissions(String user, LocalDateTime expiration, String token, boolean useKeyCloakApi) {
+        TimedPermissions timedPermissions = retrievePermissionsFromCache(user);
+        LocalDateTime refreshDate = null;
+        if (timedPermissions != null) {
+            LOG.info("Found Permissions in cache: " + timedPermissions.getPermissions().toString());
+            refreshDate = timedPermissions.getRefreshDate();
+        } else {
+            LOG.info("No Permissions in cache");
+            timedPermissions = new TimedPermissions();
+        }
+
+        if (refreshDate == null || refreshDate.isBefore(LocalDateTime.now())) {
+            //not found in cache or no longer valid --> fetch new
+            LOG.info("Permissions no longer valid. RefreshDate: " + refreshDate + ", Now is " + LocalDateTime.now());
+
+            String rpt;
+            if (useKeyCloakApi) {
+                rpt = retrieveRPTviaEntitlementsWithKeyCloakAPI(token);
+            } else {
+                rpt = retrieveRPTviaEntitlements(token);
+            }
+
+            Set<String> permissionsSet = extractPermissionsFromRPT(rpt);
+            timedPermissions.setPermissions(permissionsSet);
+            timedPermissions.setRefreshDate(expiration);
+            addPermissionsToCache(user, timedPermissions);
+
+            LOG.info("Permissions of user: " + timedPermissions.getPermissions().toString());
+        }
+        return timedPermissions;
     }
 
     /**
@@ -98,42 +129,8 @@ public class EntitlementsService {
      */
     private boolean checkPermissionWithEntitlementsInCache(String user, LocalDateTime expiration, String permission, String token, boolean useKeyCloakApi) {
         LOG.info("Called checkPermissionWithEntitlementsInCache");
-        boolean allowed = false;
-        TimedPermissions timedPermissions = retrievePermissionsFromCache(user);
-        LocalDateTime refreshDate = null;
-        if (timedPermissions != null) {
-            LOG.info("Found Permissions in cache: " + timedPermissions.getPermissions().toString());
-            refreshDate = timedPermissions.getRefreshDate();
-        } else {
-            LOG.info("No Permissions in cache");
-            timedPermissions = new TimedPermissions();
-        }
-
-        if (refreshDate != null && refreshDate.isAfter(LocalDateTime.now())) {
-            //cache content still valid, not expired --> check permission in cache
-            LOG.info("Permissions still valid");
-            allowed = timedPermissions.hasPermission(permission);
-        } else {
-            //not found in cache or no longer valid --> fetch new
-            LOG.info("Permissions no longer valid. RefreshDate: " + refreshDate + ", Now is " + LocalDateTime.now());
-
-            String rpt;
-            if (useKeyCloakApi) {
-                rpt = retrieveRPTviaEntitlementsWithKeyCloakAPI(token);
-            } else {
-                rpt = retrieveRPTviaEntitlements(token);
-            }
-
-            Set<String> permissionsSet = authorisationService.extractPermissionsFromRPT(rpt);
-            timedPermissions.setPermissions(permissionsSet);
-            timedPermissions.setRefreshDate(expiration);
-            addPermissionsToCache(user, timedPermissions);
-
-            LOG.info("Permissions of user: " + timedPermissions.getPermissions().toString());
-            if (permissionsSet.contains(permission)) {
-                allowed = true;
-            }
-        }
+        TimedPermissions timedPermissions = fetchPermissions(user, expiration, token, useKeyCloakApi);
+        boolean allowed = timedPermissions.hasPermission(permission);
         LOG.info("Permission checked, returning: " + allowed);
         return allowed;
     }
@@ -181,7 +178,6 @@ public class EntitlementsService {
         ResponseEntity<String> responseEntity = restTemplate.exchange(
                 authUrl, HttpMethod.GET, entity, String.class);
 
-
 //        String response = this.oauth2Template.getForObject(authUrl, String.class);
         String response = responseEntity.getBody();
         LOG.info("Body " + response);
@@ -213,4 +209,44 @@ public class EntitlementsService {
         String username = responseJSON.getString("preferred_username");
         return username;
     }
+
+    public Set<String> extractPermissionsFromRPT(String authorisationToken) {
+        Set<String> resourceSetList = new HashSet<>();
+        Jwt jwt = JwtHelper.decode(authorisationToken);
+        if (jwt != null) {
+            String claims = jwt.getClaims();
+            if (claims != null) {
+                JSONObject json = new JSONObject(claims);
+                if (json != null) {
+                    JSONObject authorization = json.getJSONObject("authorization");
+                    if (authorization != null) {
+                        JSONArray array = authorization.getJSONArray("permissions");
+                        if (array != null && array.length() > 0) {
+                            for (int i = 0; i < array.length(); i++) {
+                                JSONObject resource = (JSONObject) array.get(i);
+                                if (resource != null && resource.get("resource_set_name") != null) {
+                                    String resourceSetName = resource.get("resource_set_name").toString();
+                                    resourceSetList.add(resourceSetName);
+                                } else {
+                                    throw new RuntimeException("Resource not found");
+                                }
+                            }
+                        } else {
+                            throw new RuntimeException("permissions not filled");
+                        }
+                    } else {
+                        throw new RuntimeException("Array not filled");
+                    }
+                } else {
+                    throw new RuntimeException("authorization not filled");
+                }
+            } else {
+                throw new RuntimeException("claims not filled");
+            }
+        } else {
+            throw new RuntimeException("no claims");
+        }
+        return resourceSetList;
+    }
+
 }
