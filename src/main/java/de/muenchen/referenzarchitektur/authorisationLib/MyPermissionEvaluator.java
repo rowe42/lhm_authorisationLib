@@ -42,9 +42,11 @@ public class MyPermissionEvaluator implements PermissionEvaluator {
         
         boolean allowed = false;
         if (method.equals("Entitlements")) {
-            allowed = this.entitlementsService.check(string, tokenValue, false);
+            allowed = this.entitlementsService.check(string, tokenValue, false, true);
         } else if (method.equals("EntitlementsKeyCloakAPI")) {
-            allowed = this.entitlementsService.check(string, tokenValue, true);
+            allowed = this.entitlementsService.check(string, tokenValue, true, true);
+        }  else if (method.equals("EntitlementsNoCache")) {
+            allowed = this.entitlementsService.check(string, tokenValue, false, false);
         }  
         else {
             LOG.info("Not supported!");

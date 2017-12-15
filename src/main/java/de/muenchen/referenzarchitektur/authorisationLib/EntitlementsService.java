@@ -57,15 +57,20 @@ public class EntitlementsService {
      * @param token
      * @return
      */
-    public boolean check(String permission, String token, boolean useKeyCloakApi) {
+    public boolean check(String permission, String token, boolean useKeyCloakApi, boolean useCache) {
         LOG.info("Called method2 (Entitlements) with permission " + permission);
         LOG.info("Token " + token);
         String claims = retrieveClaimsFromJWT(token);
         LocalDateTime refreshDate = calculateExpirationFromJWT(claims);
         String user = retrieveUsernameFromToken(claims);
         LOG.info("Retrieved from token: username " + user + " refreshDate " + refreshDate);
-        return checkPermissionWithEntitlementsInCache(user, refreshDate, permission, token, useKeyCloakApi);
+        if (useCache) {
+            return checkPermissionWithEntitlementsInCache(user, refreshDate, permission, token, useKeyCloakApi);
+        } else {
+            return checkPermissionWithEntitlementsNoCache(permission, token);
+        }
     }
+    
 
     public Set<String> getPermissions(boolean useKeyCloakApi) {
         Authentication a = SecurityContextHolder.getContext().getAuthentication();
@@ -133,6 +138,13 @@ public class EntitlementsService {
         boolean allowed = timedPermissions.hasPermission(permission);
         LOG.info("Permission checked, returning: " + allowed);
         return allowed;
+    }
+    
+    
+    private boolean checkPermissionWithEntitlementsNoCache(String permission, String token) {
+        String rpt = retrieveRPTviaEntitlements(token);
+        Set<String> permissionsSet = extractPermissionsFromRPT(rpt);
+        return permissionsSet.contains(permission);
     }
 
     private TimedPermissions retrievePermissionsFromCache(String user) {
