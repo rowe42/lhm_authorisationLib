@@ -22,8 +22,11 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.jwt.Jwt;
 import org.springframework.security.jwt.JwtHelper;
+import org.springframework.security.oauth2.provider.authentication.OAuth2AuthenticationDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -44,14 +47,17 @@ public class EntitlementsService {
     //TODO muss durch einen richtigen Cache ersetzt werden, der nicht vollläuft!!!
     private Map<String, Permissions> permissionsCache = new HashMap<>();
 
-    /**Prüft die permission gegen KeyCloak unter Nutzung des übergebenen Token.
-     * Zunächst wird jedoch geprüft, ob der Token noch valide gegenüber der aktuellen
-     * Systemzeit ist.
+    /**
+     * Prüft die permission gegen KeyCloak unter Nutzung des übergebenen Token.
+     * Zunächst wird jedoch geprüft, ob der Token noch valide gegenüber der
+     * aktuellen Systemzeit ist.
      *
      * @param permission die Permission, die geprüft werden soll
      * @param token der Token, mit dem KeyCloak aufgerufen werden soll
-     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein direkter REST-Call erfolgen soll
-     * @param useCache bei false wird bei jedem Aufruf direkt KeyCloak aufgerufen, bei true wird ein vorgelagerter Cache geprüft 
+     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein
+     * direkter REST-Call erfolgen soll
+     * @param useCache bei false wird bei jedem Aufruf direkt KeyCloak
+     * aufgerufen, bei true wird ein vorgelagerter Cache geprüft
      * @return true wenn zu dem token die permission existiert, false sonst
      */
     public boolean check(String permission, String token, boolean useKeyCloakApi, boolean useCache) {
@@ -70,7 +76,33 @@ public class EntitlementsService {
     }
 
     /**
-     * Prüft ob der übergebene Token gegenüber der Systemzeit bereits abgelaufen ist.
+     * Holt die Permissions für den aktuellen User. Verwendet dafür das Token aus
+     * dem aktuellen SecurityContext.
+     * @param useCache bei false wird bei jedem Aufruf direkt KeyCloak
+     * aufgerufen, bei true wird ein vorgelagerter Cache geprüft
+     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein
+     * direkter REST-Call erfolgen soll
+     * @return 
+     */
+    public Set<String> getPermissions(boolean useCache, boolean useKeyCloakApi) {
+        Authentication a = SecurityContextHolder.getContext().getAuthentication();
+        OAuth2AuthenticationDetails details = (OAuth2AuthenticationDetails) a.getDetails();
+        String token = details.getTokenValue();
+        
+        Permissions permissions;
+        
+        if (useCache) {
+            permissions = fetchPermissionsWithCache(token, useKeyCloakApi);
+        } else {
+            permissions = fetchPermissions(token, useKeyCloakApi);
+        }
+        return permissions.getPermissions();
+    }
+
+    /**
+     * Prüft ob der übergebene Token gegenüber der Systemzeit bereits abgelaufen
+     * ist.
+     *
      * @param token der zu prüfende Token
      * @return true oder false
      */
@@ -91,32 +123,34 @@ public class EntitlementsService {
      *
      * @param permission die zu prüfende Permission
      * @param token der Token, mit dem KeyCloak aufgerufen wird
-     * @param useCache falls true, wird zunächst im lokalen Cache nach permissions zu diesem token geschaut
-     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein direkter REST-Call erfolgen soll
+     * @param useCache falls true, wird zunächst im lokalen Cache nach
+     * permissions zu diesem token geschaut
+     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein
+     * direkter REST-Call erfolgen soll
      * @return true wenn zu dem token die permission existiert, false sonst
      */
     private boolean checkPermissionWithEntitlements(String permission, String token, boolean useCache, boolean useKeyCloakApi) {
         LOG.fine("Called checkPermissionWithEntitlementsInCache");
         Permissions permissions;
-        
+
         if (useCache) {
             permissions = fetchPermissionsWithCache(token, useKeyCloakApi);
         } else {
             permissions = fetchPermissions(token, useKeyCloakApi);
         }
-        
+
         boolean allowed = permissions.hasPermission(permission);
         LOG.fine("Permission checked, returning: " + allowed);
         return allowed;
     }
 
-
     /**
-     * Zu dem übergebenen Token werden die zugehörigen Permissions von KeyCloak geholt.
-     * Dabei wird zunächst im lokalen Cache geschaut.
-     * 
+     * Zu dem übergebenen Token werden die zugehörigen Permissions von KeyCloak
+     * geholt. Dabei wird zunächst im lokalen Cache geschaut.
+     *
      * @param token der Token, mit dem KeyCloak aufgerufen wird
-     * @param useKeyCloakApi  ob das KeyCloak-JAR genutzt werden soll oder ein direkter REST-Call erfolgen soll
+     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein
+     * direkter REST-Call erfolgen soll
      * @return die Permissions zu diesem Token
      */
     private Permissions fetchPermissionsWithCache(String token, boolean useKeyCloakApi) {
@@ -135,9 +169,12 @@ public class EntitlementsService {
     }
 
     /**
-     * Zu dem übergebenen Token werden die zugehörigen Permissions von KeyCloak geholt.
+     * Zu dem übergebenen Token werden die zugehörigen Permissions von KeyCloak
+     * geholt.
+     *
      * @param token der Token, mit dem KeyCloak aufgerufen wird
-     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein direkter REST-Call erfolgen soll
+     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein
+     * direkter REST-Call erfolgen soll
      * @return die Permissions zu diesem Token
      */
     private Permissions fetchPermissions(String token, boolean useKeyCloakApi) {
@@ -161,8 +198,9 @@ public class EntitlementsService {
 
     /**
      * Holt die Permissions aus dem Cache zu dem übergebenen Key.
-     * @param key 
-     * @return 
+     *
+     * @param key
+     * @return
      */
     private Permissions retrievePermissionsFromCache(String key) {
         return permissionsCache.get(key);
@@ -170,17 +208,20 @@ public class EntitlementsService {
 
     /**
      * Legt die übergebenen Permissions unter dem übergebenen key im Cache ab.
+     *
      * @param key
-     * @param permissions 
+     * @param permissions
      */
     private void addPermissionsToCache(String key, Permissions permissions) {
         permissionsCache.put(key, permissions);
     }
 
     /**
-     * Parst die Claims aus dem übergebenen JWT-Token. Das JWT wird dabei zunächst aus dem Base64-Format konvertiert.
-     * @param token 
-     * @return 
+     * Parst die Claims aus dem übergebenen JWT-Token. Das JWT wird dabei
+     * zunächst aus dem Base64-Format konvertiert.
+     *
+     * @param token
+     * @return
      */
     private String retrieveClaimsFromJWT(String token) {
         Jwt jwt = JwtHelper.decode(token);
@@ -190,8 +231,9 @@ public class EntitlementsService {
 
     /**
      * Parst das expirationDate aus den übergebenen Claims.
+     *
      * @param claims
-     * @return 
+     * @return
      */
     private LocalDateTime calculateExpirationFromClaims(String claims) {
         JSONObject responseJSON = new JSONObject(claims);
@@ -204,7 +246,8 @@ public class EntitlementsService {
     }
 
     /**
-     * Ruft die Entitlements-API direkt über RestTemplate auf und holt das RPT-Token.
+     * Ruft die Entitlements-API direkt über RestTemplate auf und holt das
+     * RPT-Token.
      *
      * @param token das Token, das an KeyCloak gesendet wird
      * @return das RPT-Token
@@ -225,21 +268,22 @@ public class EntitlementsService {
         String response = responseEntity.getBody();
 
         JSONObject responseJSON = new JSONObject(response);
-        
+
         String rpt = responseJSON.getString("rpt");
         LOG.fine("Got this RPT: " + rpt);
         return rpt;
     }
 
     /**
-     * Ruft die Entitlements-API über das KeyCloak-JAR auf und holt das RPT-Token.
+     * Ruft die Entitlements-API über das KeyCloak-JAR auf und holt das
+     * RPT-Token.
      *
      * @param token das Token, das an KeyCloak gesendet wird
      * @return das RPT-Token
      */
     private String retrieveRPTviaEntitlementsWithKeyCloakAPI(String token) {
         LOG.fine("Called retrieveRPTviaEntitlementsWithKeyCloakAPI");
-        
+
         AuthzClient authzClient = AuthzClient.create();
 
         EntitlementResponse response = authzClient.entitlement(token)
@@ -250,7 +294,9 @@ public class EntitlementsService {
     }
 
     /**
-     * Parst die Permissions aus dem übergebenen RPT-Token. Das RPT-Token wird dabei zunächst aus dem Base64-Format konvertiert.
+     * Parst die Permissions aus dem übergebenen RPT-Token. Das RPT-Token wird
+     * dabei zunächst aus dem Base64-Format konvertiert.
+     *
      * @param rpt
      * @return
      */
