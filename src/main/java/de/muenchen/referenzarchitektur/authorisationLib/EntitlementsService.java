@@ -5,7 +5,7 @@
  */
 package de.muenchen.referenzarchitektur.authorisationLib;
 
-import de.muenchen.referenzarchitektur.authorisationLib.model.TimedPermissions;
+import de.muenchen.referenzarchitektur.authorisationLib.model.Permissions;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -43,143 +43,217 @@ public class EntitlementsService {
     @Value("${security.oauth2.entitlements.entitlementsUri}")
     private String authUrl;
 
-    //hack: Entitlements "Cache": user --> permissions
-    private Map<String, TimedPermissions> permissions = new HashMap<>();
-
-//    public EntitlementsService(OAuth2RestTemplate oauth2Template) {
-//        this.oauth2Template = oauth2Template;
-//    }
+    //hack: Entitlements "Cache": token --> permissions
+    //TODO muss durch einen richtigen Cache ersetzt werden, der nicht vollläuft!!!
+    private Map<String, Permissions> permissionsCache = new HashMap<>();
 
     /**
-     * check (Entitlements)
+     * Prüft die permission gegen KeyCloak unter Nutzung des übergebenen Token.
+     * Zunächst wird jedoch geprüft, ob der Token noch valide gegenüber der
+     * aktuellen Systemzeit ist.
      *
-     * @param permission
+     * @param permission die Permission, die geprüft werden soll
+     * @param token der Token, mit dem KeyCloak aufgerufen werden soll
+     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein
+     * direkter REST-Call erfolgen soll
+     * @param useCache bei false wird bei jedem Aufruf direkt KeyCloak
+     * aufgerufen, bei true wird ein vorgelagerter Cache geprüft
+     * @return true wenn zu dem token die permission existiert, false sonst
+     */
+    public boolean check(String permission, String token, boolean useKeyCloakApi, boolean useCache) {
+        boolean check;
+
+        LOG.fine("Called Entitlements-check with permission " + permission);
+        LOG.finer("Token " + token);
+
+        if (isTokenExpired(token)) {
+            LOG.warning("Provided token is already expired. Token: " + token);
+            check = false;
+        }
+
+        check = checkPermissionWithEntitlements(permission, token, useCache, useKeyCloakApi);
+        return check;
+    }
+
+    /**
+     * Holt die Permissions für den aktuellen User. Verwendet dafür das Token aus
+     * dem aktuellen SecurityContext.
+     * @param useCache bei false wird bei jedem Aufruf direkt KeyCloak
+     * aufgerufen, bei true wird ein vorgelagerter Cache geprüft
+     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein
+     * direkter REST-Call erfolgen soll
+     * @return 
+     */
+    public Set<String> getPermissions(boolean useCache, boolean useKeyCloakApi) {
+        Authentication a = SecurityContextHolder.getContext().getAuthentication();
+        OAuth2AuthenticationDetails details = (OAuth2AuthenticationDetails) a.getDetails();
+        String token = details.getTokenValue();
+        
+        Permissions permissions;
+        
+        if (useCache) {
+            permissions = fetchPermissionsWithCache(token, useKeyCloakApi);
+        } else {
+            permissions = fetchPermissions(token, useKeyCloakApi);
+        }
+        return permissions.getPermissions();
+    }
+
+    /**
+     * Prüft ob der übergebene Token gegenüber der Systemzeit bereits abgelaufen
+     * ist.
+     *
+     * @param token der zu prüfende Token
+     * @return true oder false
+     */
+    private boolean isTokenExpired(String token) {
+        boolean expired;
+        String claims = retrieveClaimsFromJWT(token);
+        LocalDateTime expiredDate = calculateExpirationFromClaims(claims);
+        if (expiredDate.isBefore(LocalDateTime.now())) {
+            expired = true;
+        } else {
+            expired = false;
+        }
+        return expired;
+    }
+
+    /**
+     * Überprüft die übergebene permission gegen KeyCloak via Entitlements-API.
+     *
+     * @param permission die zu prüfende Permission
+     * @param token der Token, mit dem KeyCloak aufgerufen wird
+     * @param useCache falls true, wird zunächst im lokalen Cache nach
+     * permissions zu diesem token geschaut
+     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein
+     * direkter REST-Call erfolgen soll
+     * @return true wenn zu dem token die permission existiert, false sonst
+     */
+    private boolean checkPermissionWithEntitlements(String permission, String token, boolean useCache, boolean useKeyCloakApi) {
+        LOG.fine("Called checkPermissionWithEntitlementsInCache");
+        Permissions permissions;
+
+        if (useCache) {
+            permissions = fetchPermissionsWithCache(token, useKeyCloakApi);
+        } else {
+            permissions = fetchPermissions(token, useKeyCloakApi);
+        }
+
+        boolean allowed = permissions.hasPermission(permission);
+        LOG.fine("Permission checked, returning: " + allowed);
+        return allowed;
+    }
+
+    /**
+     * Zu dem übergebenen Token werden die zugehörigen Permissions von KeyCloak
+     * geholt. Dabei wird zunächst im lokalen Cache geschaut.
+     *
+     * @param token der Token, mit dem KeyCloak aufgerufen wird
+     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein
+     * direkter REST-Call erfolgen soll
+     * @return die Permissions zu diesem Token
+     */
+    private Permissions fetchPermissionsWithCache(String token, boolean useKeyCloakApi) {
+        Permissions permissions = retrievePermissionsFromCache(token);
+
+        if (permissions == null || permissions.isEmpty()) {
+            //not found in cache 
+            LOG.fine("Permissions not found in Cache.");
+
+            permissions = fetchPermissions(token, useKeyCloakApi);
+        } else {
+            LOG.fine("Permissions found in Cache: " + permissions.getPermissions().toString());
+        }
+
+        return permissions;
+    }
+
+    /**
+     * Zu dem übergebenen Token werden die zugehörigen Permissions von KeyCloak
+     * geholt.
+     *
+     * @param token der Token, mit dem KeyCloak aufgerufen wird
+     * @param useKeyCloakApi ob das KeyCloak-JAR genutzt werden soll oder ein
+     * direkter REST-Call erfolgen soll
+     * @return die Permissions zu diesem Token
+     */
+    private Permissions fetchPermissions(String token, boolean useKeyCloakApi) {
+        Permissions permissions = new Permissions();
+
+        String rpt;
+        if (useKeyCloakApi) {
+            rpt = retrieveRPTviaEntitlementsWithKeyCloakAPI(token);
+        } else {
+            rpt = retrieveRPTviaEntitlements(token);
+        }
+
+        Set<String> permissionsSet = extractPermissionsFromRPT(rpt);
+        permissions.setPermissions(permissionsSet);
+        addPermissionsToCache(token, permissions);
+
+        LOG.fine("Permissions retrieved from KeyCloak: " + permissions.getPermissions().toString());
+
+        return permissions;
+    }
+
+    /**
+     * Holt die Permissions aus dem Cache zu dem übergebenen Key.
+     *
+     * @param key
+     * @return
+     */
+    private Permissions retrievePermissionsFromCache(String key) {
+        return permissionsCache.get(key);
+    }
+
+    /**
+     * Legt die übergebenen Permissions unter dem übergebenen key im Cache ab.
+     *
+     * @param key
+     * @param permissions
+     */
+    private void addPermissionsToCache(String key, Permissions permissions) {
+        permissionsCache.put(key, permissions);
+    }
+
+    /**
+     * Parst die Claims aus dem übergebenen JWT-Token. Das JWT wird dabei
+     * zunächst aus dem Base64-Format konvertiert.
+     *
      * @param token
      * @return
      */
-    public boolean check(String permission, String token, boolean useKeyCloakApi, boolean useCache) {
-        LOG.info("Called method2 (Entitlements) with permission " + permission);
-        LOG.info("Token " + token);
-        String claims = retrieveClaimsFromJWT(token);
-        LocalDateTime refreshDate = calculateExpirationFromJWT(claims);
-        String user = retrieveUsernameFromToken(claims);
-        LOG.info("Retrieved from token: username " + user + " refreshDate " + refreshDate);
-        if (useCache) {
-            return checkPermissionWithEntitlementsInCache(user, refreshDate, permission, token, useKeyCloakApi);
-        } else {
-            return checkPermissionWithEntitlementsNoCache(permission, token);
-        }
-    }
-    
-
-    public Set<String> getPermissions(boolean useKeyCloakApi) {
-        Authentication a = SecurityContextHolder.getContext().getAuthentication();
-        OAuth2AuthenticationDetails details = (OAuth2AuthenticationDetails) a.getDetails();
-        String tokenValue = details.getTokenValue();
-        String claims = retrieveClaimsFromJWT(tokenValue);
-
-        //String userName = ((java.util.LinkedHashMap) a.getUserAuthentication().getDetails()).get("preferred_username");
-        String userName = retrieveUsernameFromToken(claims);
-        LOG.info("User: " + userName);
-        
-        LocalDateTime refreshDate = calculateExpirationFromJWT(claims);
-        TimedPermissions timedPermissions = fetchPermissions(userName, refreshDate, tokenValue, useKeyCloakApi);
-        Set<String> permissionSet = timedPermissions.getPermissions();
-        if (permissionSet != null) {
-            LOG.info("Permissions " + permissionSet.toString());
-        }
-        return permissionSet;
-    }
-    
-    
-    private TimedPermissions fetchPermissions(String user, LocalDateTime expiration, String token, boolean useKeyCloakApi) {
-        TimedPermissions timedPermissions = retrievePermissionsFromCache(user);
-        LocalDateTime refreshDate = null;
-        if (timedPermissions != null) {
-            LOG.info("Found Permissions in cache: " + timedPermissions.getPermissions().toString());
-            refreshDate = timedPermissions.getRefreshDate();
-        } else {
-            LOG.info("No Permissions in cache");
-            timedPermissions = new TimedPermissions();
-        }
-
-        if (refreshDate == null || refreshDate.isBefore(LocalDateTime.now())) {
-            //not found in cache or no longer valid --> fetch new
-            LOG.info("Permissions no longer valid. RefreshDate: " + refreshDate + ", Now is " + LocalDateTime.now());
-
-            String rpt;
-            if (useKeyCloakApi) {
-                rpt = retrieveRPTviaEntitlementsWithKeyCloakAPI(token);
-            } else {
-                rpt = retrieveRPTviaEntitlements(token);
-            }
-
-            Set<String> permissionsSet = extractPermissionsFromRPT(rpt);
-            timedPermissions.setPermissions(permissionsSet);
-            timedPermissions.setRefreshDate(expiration);
-            addPermissionsToCache(user, timedPermissions);
-
-            LOG.info("Permissions of user: " + timedPermissions.getPermissions().toString());
-        }
-        return timedPermissions;
-    }
-
-    /**
-     * Check Permission with Entitlements. Check Cache first.
-     *
-     * @param user
-     * @param expiration
-     * @param permission
-     * @return
-     */
-    private boolean checkPermissionWithEntitlementsInCache(String user, LocalDateTime expiration, String permission, String token, boolean useKeyCloakApi) {
-        LOG.info("Called checkPermissionWithEntitlementsInCache");
-        TimedPermissions timedPermissions = fetchPermissions(user, expiration, token, useKeyCloakApi);
-        boolean allowed = timedPermissions.hasPermission(permission);
-        LOG.info("Permission checked, returning: " + allowed);
-        return allowed;
-    }
-    
-    
-    private boolean checkPermissionWithEntitlementsNoCache(String permission, String token) {
-        String rpt = retrieveRPTviaEntitlements(token);
-        Set<String> permissionsSet = extractPermissionsFromRPT(rpt);
-        return permissionsSet.contains(permission);
-    }
-
-    private TimedPermissions retrievePermissionsFromCache(String user) {
-        return permissions.get(user);
-    }
-
-    private void addPermissionsToCache(String user, TimedPermissions timedPermissions) {
-        permissions.put(user, timedPermissions);
-    }
-
-    private String retrieveClaimsFromJWT(String base64Token) {
-        Jwt jwt = JwtHelper.decode(base64Token);
+    private String retrieveClaimsFromJWT(String token) {
+        Jwt jwt = JwtHelper.decode(token);
         String claims = jwt.getClaims();
         return claims;
     }
 
-    private LocalDateTime calculateExpirationFromJWT(String base64Token) {
-        JSONObject responseJSON = new JSONObject(base64Token);
+    /**
+     * Parst das expirationDate aus den übergebenen Claims.
+     *
+     * @param claims
+     * @return
+     */
+    private LocalDateTime calculateExpirationFromClaims(String claims) {
+        JSONObject responseJSON = new JSONObject(claims);
         long exp = responseJSON.getInt("exp");
         LocalDateTime ldt = LocalDateTime.ofEpochSecond(exp, 0, ZoneOffset.ofHours(2));
 
-        //long iat = responseJSON.getInt("iat");
-        //LocalDateTime ldt = LocalDateTime.now().plusSeconds(exp - iat);
-        LOG.info("Calculated RefreshDate: " + ldt);
+        LOG.fine("Calculated ExpirationDate: " + ldt);
 
         return ldt;
     }
 
     /**
-     * Calls Entitlements-API directly without KeyCloak-specific Code.
+     * Ruft die Entitlements-API direkt über RestTemplate auf und holt das
+     * RPT-Token.
      *
-     * @return The retrieved RPT
+     * @param token das Token, das an KeyCloak gesendet wird
+     * @return das RPT-Token
      */
     private String retrieveRPTviaEntitlements(String token) {
-        LOG.info("Called retrieveEntitlements");
+        LOG.fine("Called retrieveRPTviaEntitlements");
 
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
@@ -192,39 +266,43 @@ public class EntitlementsService {
 
 //        String response = this.oauth2Template.getForObject(authUrl, String.class);
         String response = responseEntity.getBody();
-        LOG.info("Body " + response);
 
         JSONObject responseJSON = new JSONObject(response);
 
-        LOG.info("entitlements retrieved");
-        return responseJSON.getString("rpt");
+        String rpt = responseJSON.getString("rpt");
+        LOG.fine("Got this RPT: " + rpt);
+        return rpt;
     }
 
     /**
-     * Calls Entitlements-API with the help of keycloak specific classes.
+     * Ruft die Entitlements-API über das KeyCloak-JAR auf und holt das
+     * RPT-Token.
      *
-     * @param token The User Access Token
-     * @return The retrieved RPT
+     * @param token das Token, das an KeyCloak gesendet wird
+     * @return das RPT-Token
      */
     private String retrieveRPTviaEntitlementsWithKeyCloakAPI(String token) {
+        LOG.fine("Called retrieveRPTviaEntitlementsWithKeyCloakAPI");
+
         AuthzClient authzClient = AuthzClient.create();
 
         EntitlementResponse response = authzClient.entitlement(token)
                 .getAll("openIdDemo");
         String rpt = response.getRpt();
-        LOG.info("Got this RPT: " + rpt);
+        LOG.fine("Got this RPT: " + rpt);
         return rpt;
     }
 
-    public String retrieveUsernameFromToken(String token) {
-        JSONObject responseJSON = new JSONObject(token);
-        String username = responseJSON.getString("preferred_username");
-        return username;
-    }
-
-    public Set<String> extractPermissionsFromRPT(String authorisationToken) {
+    /**
+     * Parst die Permissions aus dem übergebenen RPT-Token. Das RPT-Token wird
+     * dabei zunächst aus dem Base64-Format konvertiert.
+     *
+     * @param rpt
+     * @return
+     */
+    public Set<String> extractPermissionsFromRPT(String rpt) {
         Set<String> resourceSetList = new HashSet<>();
-        Jwt jwt = JwtHelper.decode(authorisationToken);
+        Jwt jwt = JwtHelper.decode(rpt);
         if (jwt != null) {
             String claims = jwt.getClaims();
             if (claims != null) {

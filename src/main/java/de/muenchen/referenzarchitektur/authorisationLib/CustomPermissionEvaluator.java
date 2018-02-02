@@ -18,9 +18,9 @@ import org.springframework.stereotype.Service;
  * @author Roland.Werner
  */
 @Service
-public class MyPermissionEvaluator implements PermissionEvaluator {
+public class CustomPermissionEvaluator implements PermissionEvaluator {
 
-    private static final Logger LOG = Logger.getLogger(MyPermissionEvaluator.class.getName());
+    private static final Logger LOG = Logger.getLogger(CustomPermissionEvaluator.class.getName());
     
     @Autowired    
     private final EntitlementsService entitlementsService = null;
@@ -30,26 +30,34 @@ public class MyPermissionEvaluator implements PermissionEvaluator {
         return hasPermission(a, 1, (String) o, o1);
     }
 
+    /**
+     * Prüft die übergebene Permission gegen KeyCloak. Holt sich dafür den Token des aktuellen Users.
+     * @param a
+     * @param srlzbl
+     * @param permission die zu überprüfende Permission
+     * @param methodObject welche Methode anzuwenden ist: a) Entitlements, b) EntitlementsKeyCloakAPI, c) EntitlementsNoCache
+     * @return 
+     */
     @Override
-    public boolean hasPermission(Authentication a, Serializable srlzbl, String string, Object o) {
-        LOG.info("-----------------------------------------");
-        LOG.info("--------- hasPermission called. ---------");
-        LOG.info("-----------------------------------------");
+    public boolean hasPermission(Authentication a, Serializable srlzbl, String permission, Object methodObject) {
+        LOG.fine("-----------------------------------------");
+        LOG.fine("--------- hasPermission called. ---------");
+        LOG.fine("-----------------------------------------");
         OAuth2AuthenticationDetails details = (OAuth2AuthenticationDetails) a.getDetails();
         String tokenValue = details.getTokenValue();          
         
-        String method = (String) o;
+        String method = (String) methodObject;
         
         boolean allowed = false;
         if (method.equals("Entitlements")) {
-            allowed = this.entitlementsService.check(string, tokenValue, false, true);
+            allowed = this.entitlementsService.check(permission, tokenValue, false, true);
         } else if (method.equals("EntitlementsKeyCloakAPI")) {
-            allowed = this.entitlementsService.check(string, tokenValue, true, true);
+            allowed = this.entitlementsService.check(permission, tokenValue, true, true);
         }  else if (method.equals("EntitlementsNoCache")) {
-            allowed = this.entitlementsService.check(string, tokenValue, false, false);
+            allowed = this.entitlementsService.check(permission, tokenValue, false, false);
         }  
         else {
-            LOG.info("Not supported!");
+            LOG.severe("Supplied method " + method + " not supported!");
         }
         return allowed;
     }

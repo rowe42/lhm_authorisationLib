@@ -13,18 +13,9 @@ import java.util.Set;
  *
  * @author roland.werner
  */
-public class TimedPermissions {
+public class Permissions {
 
-    private LocalDateTime refreshDate;
     private Set<String> permissions = new HashSet<>();
-
-    public LocalDateTime getRefreshDate() {
-        return refreshDate;
-    }
-
-    public void setRefreshDate(LocalDateTime refreshDate) {
-        this.refreshDate = refreshDate;
-    }
 
     public Set<String> getPermissions() {
         return permissions;
@@ -40,6 +31,10 @@ public class TimedPermissions {
     
     public void setPermissions(Set<String> permissions) {
         this.permissions = permissions;
+    }
+    
+    public boolean isEmpty() {
+        return permissions.isEmpty();
     }
 
 
