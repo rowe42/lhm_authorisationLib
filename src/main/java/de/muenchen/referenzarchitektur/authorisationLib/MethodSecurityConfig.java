@@ -6,9 +6,9 @@
 package de.muenchen.referenzarchitektur.authorisationLib;
 
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.method.configuration.GlobalMethodSecurityConfiguration;
 
 /**
@@ -16,7 +16,7 @@ import org.springframework.security.config.annotation.method.configuration.Globa
  * @author Roland.Werner
  */
 @Configuration
-@EnableGlobalMethodSecurity(prePostEnabled = true)
+@Profile("!no-security")
 public class MethodSecurityConfig extends GlobalMethodSecurityConfiguration {
  
     @Override
