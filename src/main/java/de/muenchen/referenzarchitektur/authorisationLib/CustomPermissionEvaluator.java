@@ -23,7 +23,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
     private static final Logger LOG = Logger.getLogger(CustomPermissionEvaluator.class.getName());
     
     @Autowired    
-    private final EntitlementsService entitlementsService = null;
+    private EntitlementsService entitlementsService;
     
     @Override
     public boolean hasPermission(Authentication a, Object o, Object o1) {
@@ -50,11 +50,9 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         
         boolean allowed = false;
         if (method.equals("Entitlements")) {
-            allowed = this.entitlementsService.check(permission, tokenValue, false, true);
-        } else if (method.equals("EntitlementsKeyCloakAPI")) {
-            allowed = this.entitlementsService.check(permission, tokenValue, true, true);
-        }  else if (method.equals("EntitlementsNoCache")) {
-            allowed = this.entitlementsService.check(permission, tokenValue, false, false);
+            allowed = this.entitlementsService.check(permission, tokenValue, true);
+        } else if (method.equals("EntitlementsNoCache")) {
+            allowed = this.entitlementsService.check(permission, tokenValue, false);
         }  
         else {
             LOG.severe("Supplied method " + method + " not supported!");
