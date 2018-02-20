@@ -27,9 +27,9 @@ import org.springframework.stereotype.Service;
  * @author roland.werner
  */
 @Service
-public class EntitlementsService {
+public class PermissionsService {
 
-    private static final Logger LOG = Logger.getLogger(EntitlementsService.class.getName());
+    private static final Logger LOG = Logger.getLogger(PermissionsService.class.getName());
 
     @Autowired
     private OAuth2RestTemplate oauth2RestTemplate;
@@ -209,8 +209,6 @@ public class EntitlementsService {
                     throw new RuntimeException("Resource not found");
                 }
             }
-        } else {
-            throw new RuntimeException("permissions not filled");
         }
         return resourceSetList;
     }

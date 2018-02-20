@@ -23,7 +23,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
     private static final Logger LOG = Logger.getLogger(CustomPermissionEvaluator.class.getName());
     
     @Autowired    
-    private EntitlementsService entitlementsService;
+    private PermissionsService entitlementsService;
     
     @Override
     public boolean hasPermission(Authentication a, Object o, Object o1) {
