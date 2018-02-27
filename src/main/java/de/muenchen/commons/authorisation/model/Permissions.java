@@ -3,8 +3,9 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package de.muenchen.referenzarchitektur.authorisationLib.model;
+package de.muenchen.commons.authorisation.model;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -13,7 +14,9 @@ import java.util.Set;
  *
  * @author roland.werner
  */
-public class Permissions {
+public class Permissions implements Serializable {
+    
+    private static final long serialVersionUID = 1L;
 
     private Set<String> permissions = new HashSet<>();
 

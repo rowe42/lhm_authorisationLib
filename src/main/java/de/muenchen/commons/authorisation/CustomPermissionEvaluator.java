@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package de.muenchen.referenzarchitektur.authorisationLib;
+package de.muenchen.commons.authorisation;
 
 import java.io.Serializable;
 import java.util.logging.Logger;
