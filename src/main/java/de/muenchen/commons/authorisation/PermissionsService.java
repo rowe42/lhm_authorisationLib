@@ -8,15 +8,12 @@ package de.muenchen.commons.authorisation;
 import de.muenchen.commons.authorisation.model.Permissions;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.jwt.Jwt;
 import org.springframework.security.jwt.JwtHelper;
 import org.springframework.security.oauth2.client.OAuth2RestTemplate;
@@ -33,11 +30,9 @@ public class PermissionsService {
 
     @Autowired
     private OAuth2RestTemplate oauth2RestTemplate;
-
-
-    //hack: Entitlements "Cache": token --> permissions
-    //TODO muss durch einen richtigen Cache ersetzt werden, der nicht vollläuft!!!
-    private final Map<String, Permissions> permissionsCache = new HashMap<>();
+    
+    @Autowired
+    private PermissionsCache permissionsCache;
 
     /**
      * Prüft die permission gegen KeyCloak unter Nutzung des übergebenen Token.
@@ -155,7 +150,8 @@ public class PermissionsService {
      * @return
      */
     private Permissions retrievePermissionsFromCache(String key) {
-        return permissionsCache.get(key);
+        Permissions permissions = permissionsCache.getCache().get(key);
+        return permissions;
     }
 
     /**
@@ -165,7 +161,7 @@ public class PermissionsService {
      * @param permissions
      */
     private void addPermissionsToCache(String key, Permissions permissions) {
-        permissionsCache.put(key, permissions);
+        permissionsCache.getCache().put(key, permissions);
     }
 
     /**
