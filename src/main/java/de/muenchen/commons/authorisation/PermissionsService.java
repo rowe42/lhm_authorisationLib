@@ -3,9 +3,9 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package de.muenchen.referenzarchitektur.authorisationLib;
+package de.muenchen.commons.authorisation;
 
-import de.muenchen.referenzarchitektur.authorisationLib.model.Permissions;
+import de.muenchen.commons.authorisation.model.Permissions;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;

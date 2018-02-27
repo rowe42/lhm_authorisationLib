@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package de.muenchen.referenzarchitektur.authorisationLib.model;
+package de.muenchen.commons.authorisation.model;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
