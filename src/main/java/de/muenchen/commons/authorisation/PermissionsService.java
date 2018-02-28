@@ -14,6 +14,8 @@ import java.util.logging.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
+import org.springframework.cache.support.SimpleValueWrapper;
 import org.springframework.security.jwt.Jwt;
 import org.springframework.security.jwt.JwtHelper;
 import org.springframework.security.oauth2.client.OAuth2RestTemplate;
@@ -31,7 +33,7 @@ public class PermissionsService {
     @Autowired
     private OAuth2RestTemplate oauth2RestTemplate;
     
-//    @Autowired
+    @Autowired
     private PermissionsCache permissionsCache;
 
     /**
@@ -150,9 +152,12 @@ public class PermissionsService {
      * @return
      */
     private Permissions retrievePermissionsFromCache(String key) {
-//        Permissions permissions = (Permissions) permissionsCache.getCache().get(key);
-//        return permissions;
-        return null;
+        Permissions permissions = null;
+        Cache.ValueWrapper vw = permissionsCache.getCache().get(key);
+        if (vw != null) {
+            permissions = (Permissions) vw.get();
+        }
+        return permissions;
     }
 
     /**
@@ -162,7 +167,7 @@ public class PermissionsService {
      * @param permissions
      */
     private void addPermissionsToCache(String key, Permissions permissions) {
-//        permissionsCache.getCache().put(key, permissions);
+        permissionsCache.getCache().put(key, permissions);
     }
 
     /**

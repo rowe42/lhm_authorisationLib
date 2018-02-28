@@ -54,10 +54,11 @@
             <groupId>javax.cache</groupId>
             <artifactId>cache-api</artifactId>
         </dependency>
-        <dependency>
+            <!--Einkommentieren um EHCache zu nutzen; Achtung: KEEPER_CACHE etc. wird dann nicht mehr automatisch generiert-->
+<!--        <dependency>
             <groupId>org.ehcache</groupId>
             <artifactId>ehcache</artifactId>
-        </dependency>
+        </dependency>-->
                 	
         <dependency>
             <groupId>org.springframework.security</groupId>
