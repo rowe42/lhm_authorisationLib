@@ -6,7 +6,7 @@
 package de.muenchen.commons.authorisation;
 
 import de.muenchen.commons.authorisation.model.Permissions;
-import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import javax.cache.CacheManager;
 import javax.cache.configuration.MutableConfiguration;
 import javax.cache.expiry.Duration;
@@ -24,27 +24,24 @@ public class CachingSetup implements JCacheManagerCustomizer {
     @Override
     public void customize(CacheManager cacheManager) {
         cacheManager.createCache("permissionsCache", new MutableConfiguration<String, Permissions>()
-                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(SECONDS, 10)))
-                //                    .setTypes(String.class, Permissions.class)
+                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(MINUTES, 7)))
+//                .setTypes(String.class, Permissions.class)
                 .setStoreByValue(false)
                 .setStatisticsEnabled(false));
 
-//        cacheManager.createCache("KEEPER_CACHE", new MutableConfiguration<String, Permissions>()
-//                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(SECONDS, 3600)))
-//                //                    .setTypes(String.class, Permissions.class)
-//                .setStoreByValue(false)
-//                .setStatisticsEnabled(false));
-//
-//        cacheManager.createCache("ANIMAL_CACHE", new MutableConfiguration<String, Permissions>()
-//                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(SECONDS, 3600)))
-//                //                    .setTypes(String.class, Permissions.class)
-//                .setStoreByValue(false)
-//                .setStatisticsEnabled(false));
-//
-//        cacheManager.createCache("ENCLOSURE_CACHE", new MutableConfiguration<String, Permissions>()
-//                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(SECONDS, 3600)))
-//                //                    .setTypes(String.class, Permissions.class)
-//                .setStoreByValue(false)
-//                .setStatisticsEnabled(false));
+        cacheManager.createCache("KEEPER_CACHE", new MutableConfiguration<String, Permissions>()
+                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(MINUTES, 60)))
+                .setStoreByValue(false)
+                .setStatisticsEnabled(false));
+
+        cacheManager.createCache("ANIMAL_CACHE", new MutableConfiguration<String, Permissions>()
+                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(MINUTES, 60)))
+                .setStoreByValue(false)
+                .setStatisticsEnabled(false));
+
+        cacheManager.createCache("ENCLOSURE_CACHE", new MutableConfiguration<String, Permissions>()
+                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(MINUTES, 60)))
+                .setStoreByValue(false)
+                .setStatisticsEnabled(false));
     }
 }
