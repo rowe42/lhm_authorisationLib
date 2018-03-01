@@ -31,7 +31,7 @@ public class PermissionsService {
     @Autowired
     private OAuth2RestTemplate oauth2RestTemplate;
     
-//    @Autowired
+    @Autowired
     private PermissionsCache permissionsCache;
 
     /**
@@ -150,9 +150,8 @@ public class PermissionsService {
      * @return
      */
     private Permissions retrievePermissionsFromCache(String key) {
-//        Permissions permissions = (Permissions) permissionsCache.getCache().get(key);
-//        return permissions;
-        return null;
+        Permissions permissions = permissionsCache.getCache().get(key);
+        return permissions;
     }
 
     /**
@@ -162,7 +161,7 @@ public class PermissionsService {
      * @param permissions
      */
     private void addPermissionsToCache(String key, Permissions permissions) {
-//        permissionsCache.getCache().put(key, permissions);
+        permissionsCache.getCache().put(key, permissions);
     }
 
     /**

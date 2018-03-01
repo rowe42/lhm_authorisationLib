@@ -21,13 +21,13 @@ import org.springframework.context.annotation.Configuration;
  *
  * @author roland
  */
-//@Configuration
+@Configuration
 @EnableCaching
 public class PermissionsCache {
     
     private final static String PERMISSIONS_CACHE = "permissionsCache";
 
-//    @Autowired
+    @Autowired
     private CacheManager cacheManager;
 
    
