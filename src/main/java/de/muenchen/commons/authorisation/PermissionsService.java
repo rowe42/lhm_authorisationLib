@@ -14,8 +14,8 @@ import java.util.logging.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.Cache;
-import org.springframework.cache.support.SimpleValueWrapper;
 import org.springframework.security.jwt.Jwt;
 import org.springframework.security.jwt.JwtHelper;
 import org.springframework.security.oauth2.client.OAuth2RestTemplate;
@@ -35,6 +35,9 @@ public class PermissionsService {
     
     @Autowired
     private PermissionsCache permissionsCache;
+    
+    @Value("${security.oauth2.entitlements.permissionsUri}")
+    private String permissionsUrl;
 
     /**
      * Prüft die permission gegen KeyCloak unter Nutzung des übergebenen Token.
@@ -132,7 +135,7 @@ public class PermissionsService {
     }
 
     private Permissions fetchPermissions(String token) {
-        String response = oauth2RestTemplate.getForObject("http://localhost:8870/permissions", String.class);
+        String response = oauth2RestTemplate.getForObject(permissionsUrl, String.class);
         JSONObject responseJSON = new JSONObject(response);
         LOG.fine("JSON received from User-Service: " + response);
         Set<String> permissionSet = extractPermissions(responseJSON);
