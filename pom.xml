@@ -54,18 +54,6 @@
             <groupId>javax.cache</groupId>
             <artifactId>cache-api</artifactId>
         </dependency>
-        <!--Einkommentieren um EHCache zu nutzen; Achtung: KEEPER_CACHE etc. wird dann nicht mehr automatisch generiert-->
-<!--        <dependency>
-            <groupId>org.ehcache</groupId>
-            <artifactId>ehcache</artifactId>
-        </dependency>-->
-        <!--Einkommentieren um Caffeine-Cache zu nutzen; Achtung: KEEPER_CACHE etc. wird dann nicht mehr automatisch generiert-->
-        <!--        <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>jcache</artifactId>
-            <version>2.2.3</version>
-        </dependency>-->
-        <!--Wenn kein Cache einkommentiert ist, wird GuavaCache verwendet-->
                 	
         <dependency>
             <groupId>org.springframework.security</groupId>
