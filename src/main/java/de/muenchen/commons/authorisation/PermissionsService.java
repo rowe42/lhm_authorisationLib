@@ -36,7 +36,7 @@ public class PermissionsService {
     @Autowired
     private PermissionsCache permissionsCache;
     
-    @Value("${security.oauth2.entitlements.permissionsUri}")
+    @Value("${security.oauth2.permissions.permissionsUri:}")
     private String permissionsUrl;
 
     /**
