@@ -15,19 +15,33 @@ import org.springframework.boot.autoconfigure.cache.JCacheManagerCustomizer;
 import org.springframework.stereotype.Component;
 
 /**
- *
+ * Klasse wird benötigt, wenn Cache umgestellt wird bspw. auf EHCache.
  * @author roland
  */
-//  @Component
-  public class CachingSetup implements JCacheManagerCustomizer
-  {
+//@Component
+public class CachingSetup implements JCacheManagerCustomizer {
+
     @Override
-    public void customize(CacheManager cacheManager)
-    {
-            cacheManager.createCache("permissionsCache", new MutableConfiguration<String, Permissions>()
-                    .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(MINUTES, 7)))
-                    .setTypes(String.class, Permissions.class)
-                    .setStoreByValue(false)
-                    .setStatisticsEnabled(false));
+    public void customize(CacheManager cacheManager) {
+        cacheManager.createCache("permissionsCache", new MutableConfiguration<String, Permissions>()
+                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(MINUTES, 7)))
+//                .setTypes(String.class, Permissions.class)
+                .setStoreByValue(false)
+                .setStatisticsEnabled(false));
+
+        cacheManager.createCache("KEEPER_CACHE", new MutableConfiguration<String, Permissions>()
+                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(MINUTES, 60)))
+                .setStoreByValue(false)
+                .setStatisticsEnabled(false));
+
+        cacheManager.createCache("ANIMAL_CACHE", new MutableConfiguration<String, Permissions>()
+                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(MINUTES, 60)))
+                .setStoreByValue(false)
+                .setStatisticsEnabled(false));
+
+        cacheManager.createCache("ENCLOSURE_CACHE", new MutableConfiguration<String, Permissions>()
+                .setExpiryPolicyFactory(TouchedExpiryPolicy.factoryOf(new Duration(MINUTES, 60)))
+                .setStoreByValue(false)
+                .setStatisticsEnabled(false));
     }
-  }
+}
