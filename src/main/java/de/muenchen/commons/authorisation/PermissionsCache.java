@@ -9,20 +9,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 
-import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Configuration;
 
 /**
  *
  * @author roland
  */
-<<<<<<< HEAD
 @Configuration
-@EnableCaching
-=======
-//@Configuration
-//@EnableCaching
->>>>>>> master
 public class PermissionsCache {
     
     private final static String PERMISSIONS_CACHE = "permissionsCache";
