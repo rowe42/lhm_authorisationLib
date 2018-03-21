@@ -8,7 +8,9 @@ package de.muenchen.commons.authorisation;
 import de.muenchen.commons.authorisation.model.Permissions;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
 import org.json.JSONArray;
@@ -33,8 +35,10 @@ public class PermissionsService {
     @Autowired
     private OAuth2RestTemplate oauth2RestTemplate;
     
-    @Autowired
+//    @Autowired
     private PermissionsCache permissionsCache;
+    
+    private final Map<String,Permissions> permissionsCacheTemp = new HashMap<>();
     
     @Value("${security.oauth2.permissions.permissionsUri:}")
     private String permissionsUrl;
@@ -156,9 +160,13 @@ public class PermissionsService {
      */
     private Permissions retrievePermissionsFromCache(String key) {
         Permissions permissions = null;
-        Cache.ValueWrapper vw = permissionsCache.getCache().get(key);
-        if (vw != null) {
-            permissions = (Permissions) vw.get();
+        if (permissionsCache != null) {
+            Cache.ValueWrapper vw = permissionsCache.getCache().get(key);
+            if (vw != null) {
+                permissions = (Permissions) vw.get();
+            }
+        } else {
+            permissions = permissionsCacheTemp.get(key);
         }
         return permissions;
     }
@@ -170,7 +178,11 @@ public class PermissionsService {
      * @param permissions
      */
     private void addPermissionsToCache(String key, Permissions permissions) {
-        permissionsCache.getCache().put(key, permissions);
+        if (permissionsCache != null) {
+            permissionsCache.getCache().put(key, permissions);
+        } else {
+            permissionsCacheTemp.put(key, permissions);
+        }
     }
 
     /**

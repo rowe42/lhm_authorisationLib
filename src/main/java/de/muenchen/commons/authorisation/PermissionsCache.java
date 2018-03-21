@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Configuration;
  *
  * @author roland
  */
-@Configuration
+//@Configuration
 public class PermissionsCache {
     
     private final static String PERMISSIONS_CACHE = "permissionsCache";
