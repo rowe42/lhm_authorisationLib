@@ -8,6 +8,7 @@ package de.muenchen.commons.authorisation;
 import java.io.Serializable;
 import java.util.logging.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.provider.authentication.OAuth2AuthenticationDetails;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
  * @author Roland.Werner
  */
 @Service
+@Profile("!no-security")
 public class CustomPermissionEvaluator implements PermissionEvaluator {
 
     private static final Logger LOG = Logger.getLogger(CustomPermissionEvaluator.class.getName());

@@ -18,6 +18,7 @@ import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.Cache;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.jwt.Jwt;
 import org.springframework.security.jwt.JwtHelper;
 import org.springframework.security.oauth2.client.OAuth2RestTemplate;
@@ -28,6 +29,7 @@ import org.springframework.stereotype.Service;
  * @author roland.werner
  */
 @Service
+@Profile("!no-security")
 public class PermissionsService {
 
     private static final Logger LOG = Logger.getLogger(PermissionsService.class.getName());
@@ -139,6 +141,7 @@ public class PermissionsService {
     }
 
     private Permissions fetchPermissions(String token) {
+        LOG.info("Found RestTemplate " + oauth2RestTemplate);
         String response = oauth2RestTemplate.getForObject(permissionsUrl, String.class);
         JSONObject responseJSON = new JSONObject(response);
         LOG.fine("JSON received from User-Service: " + response);
